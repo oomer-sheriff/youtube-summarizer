@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+yt-dlp
+transformers
+torch
+torchaudio
+accelerate
+librosa
+ffmpeg-python
+python-multipart
+sentencepiece
+tiktoken
+einops
+mcp
+pydantic>=2.0.0
+httpx
+json-repair
