@@ -29,3 +29,8 @@ To connect to our custom api:
 """
 - and before this ofcourse do pip install requirements.txt on backend directory
 
+
+
+link to demo 
+
+https://www.loom.com/share/c90b6c77907d46f69e6864b771633bdc
