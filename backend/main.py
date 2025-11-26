@@ -124,7 +124,41 @@ class OllamaChatResponse(BaseModel):
     message: ChatMessage
     done: bool = True
 
+async def fetch_mcp_tools() -> List[Dict[str, Any]]:
+    """
+    Connects to the MCP server, fetches available tools, and converts
+    them to the OpenAI function format expected by Arch-Function.
+    """
+    formatted_tools = []
+    
+    try:
+        # Connect to MCP Server
+        async with Client(MCP_SERVER_URL) as client:
+            # fastmcp client automatically handles the 'list_tools' handshake
+            mcp_tools = await client.list_tools()
+            
+            for tool in mcp_tools:
+                # Transform MCP Tool format -> OpenAI/Ollama Function format
+                formatted_tool = {
+                    "type": "function",
+                    "function": {
+                        "name": tool.name,
+                        # The description comes from the python docstring on the server
+                        "description": tool.description, 
+                        # fastmcp handles the JSON schema conversion for us
+                        "parameters": tool.inputSchema 
+                    }
+                }
+                formatted_tools.append(formatted_tool)
+                
+        logging.info(f"Successfully fetched {len(formatted_tools)} tools from MCP server.")
+        print(formatted_tools)
+        return formatted_tools
 
+    except Exception as e:
+        logging.error(f"Failed to fetch tools from MCP server: {e}")
+        # Return empty list or fallback tools if connection fails
+        return []
 # --- Tool Definition Functions ---
 def get_available_tools() -> List[Dict[str, Any]]:
     """
@@ -300,7 +334,7 @@ async def intelligent_agent_response(conversation: Conversation) -> str:
     4. LLM receives tool results and generates final response
     """
     # Get available tools
-    tools = get_available_tools()
+    tools = await fetch_mcp_tools()
     system_prompt = format_tools_prompt(tools)
     
     # Prepare messages for function-calling model
