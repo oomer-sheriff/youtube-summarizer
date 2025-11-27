@@ -5,7 +5,7 @@ from typing import Optional, Dict, Any
 from fastmcp import FastMCP
 from celery import Celery
 import celery.states
-
+from duckduckgo_search import DDGS
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -59,20 +59,27 @@ def _get_transcript_from_queue(url: str, timeout: int = 30) -> str:
 @mcp.tool()
 async def get_video_transcript(video_url: str) -> str:
     """
-    Get the COMPLETE transcript of a YouTube video. 
+    Retrieves the transcript of a SPECIFIC YouTube video.
     
-    **CRITICAL USAGE INSTRUCTIONS:**
-    - **PRIMARY TOOL:** This is your main tool for video analysis. 
-    - **WHEN TO USE:** Use this whenever the user wants to:
-        1. "Explain" or "Summarize" the video.
-        2. Understand what the video is about.
-        3. Answer ANY specific question about the video's content (e.g., "What did he say about X?").
-    - **STRATEGY:** Even if the user asks about a specific topic, you must fetch the FULL transcript first to understand the context.
-    - **FALLBACK:** If the video is long, this may return a Job ID. You must then use `check_job_status`.
+    ---
+    **CRITICAL INPUT RULE:**
+    - The `video_url` argument **MUST** be a valid URL starting with 'http' or 'https' (e.g., "https://www.youtube.com/watch?v=...").
+    - **NEVER** invent, guess, or hallucinate a URL. If the user didn't provide one, DO NOT USE THIS TOOL.
+    - **NEVER** pass a search query (like "cooking video") into this argument.
+    
+    **WHEN TO USE:**
+    - Use ONLY when the user has explicitly provided a link or referred to a specific video in the conversation history.
+    - Use for: "Summarize THIS video", "What does THIS link say?".
+    
+    **DO NOT USE:**
+    - If the user asks a general question (e.g., "How do I cook pasta?") without a link. Use `Web Search` tool.
+    ---
     """
     try:
+        
         return _get_transcript_from_queue(video_url)
     except TimeoutError as e:
+        
         return str(e)
 
 @mcp.tool()
@@ -127,6 +134,40 @@ def start_heavy_job(input_data: str) -> str:
     task = heavy_processing_tool.delay(input_data)
     return f"Job started. ID: {task.id}. Use check_job_status to see results."
 
+
+@mcp.tool()
+async def web_search(query: str, max_results: int = 5) -> str:
+    """
+    Performs a web search to find information or videos.
+    
+    ---
+    **WHEN TO USE:**
+    - Use for general knowledge ("Who is X?", "Latest news on AI").
+    - Use to find URLs for videos when the user doesn't provide one.
+    ---
+    """
+    try:
+        results = []
+        # DDGS() is the client. text() is the method for text search.
+        # max_results limits how many items we get back.
+        ddgs = DDGS()
+        search_results = ddgs.text(query, max_results=max_results)
+        
+        if not search_results:
+            return "No results found."
+
+        for item in search_results:
+            title = item.get('title', 'No Title')
+            link = item.get('href', 'No Link')
+            body = item.get('body', 'No Description')
+            results.append(f"Title: {title}\nLink: {link}\nSnippet: {body}\n---")
+            
+        return "\n".join(results)
+
+    except Exception as e:
+        return f"Search Error: {str(e)}"
+
+'''
 @mcp.tool()
 async def search_transcript(video_url: str, query: str, context_chars: int = 200) -> list[Dict[str, str]]:
 
@@ -573,7 +614,7 @@ Access transcripts via:
         }
 
     ]
-
+'''
 
 if __name__ == "__main__":
     mcp.run(transport="http", host="0.0.0.0", port=8000)
