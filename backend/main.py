@@ -124,105 +124,59 @@ class OllamaChatResponse(BaseModel):
     message: ChatMessage
     done: bool = True
 
+async def fetch_mcp_tools() -> List[Dict[str, Any]]:
+    """
+    Connects to the MCP server, fetches available tools, and converts
+    them to the OpenAI function format expected by Arch-Function.
+    """
+    formatted_tools = []
+    
+    try:
+        # Connect to MCP Server
+        async with Client(MCP_SERVER_URL) as client:
+            # fastmcp client automatically handles the 'list_tools' handshake
+            mcp_tools = await client.list_tools()
+            
+            for tool in mcp_tools:
+                # Transform MCP Tool format -> OpenAI/Ollama Function format
+                formatted_tool = {
+                    "type": "function",
+                    "function": {
+                        "name": tool.name,
+                        # The description comes from the python docstring on the server
+                        "description": tool.description, 
+                        # fastmcp handles the JSON schema conversion for us
+                        "parameters": tool.inputSchema 
+                    }
+                }
+                formatted_tools.append(formatted_tool)
+                
+        logging.info(f"Successfully fetched {len(formatted_tools)} tools from MCP server.")
+        print(formatted_tools)
+        return formatted_tools
 
+    except Exception as e:
+        logging.error(f"Failed to fetch tools from MCP server: {e}")
+        # Return empty list or fallback tools if connection fails
+        return []
 # --- Tool Definition Functions ---
-def get_available_tools() -> List[Dict[str, Any]]:
-    """
-    Get tools from FastMCP server in OpenAI function format.
-    These are the tools the LLM can intelligently choose to use.
-    """
-    return [
-        {
-            "type": "function",
-            "function": {
-                "name": "get_video_transcript",
-                "description": "Get the FULL transcript of a YouTube video. **USE THIS TOOL** when the user wants to: explain the video, summarize content, understand what the video is about, or answer ANY question about the video's content or topics. This is your PRIMARY tool for video analysis - it gives you ALL the spoken content. Even if the user mentions specific topics (like 'explain how X changed'), you MUST use this tool to get the full transcript first.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "video_url": {
-                            "type": "string",
-                            "description": "The URL of the YouTube video (supports youtube.com/watch, /shorts, and youtu.be formats)"
-                        }
-                    },
-                    "required": ["video_url"]
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "get_video_info",
-                "description": "Get metadata about a YouTube video including word count, character count, estimated tokens, and reading time. Use this ONLY when user specifically asks about video LENGTH or STATISTICS. If user asks about content, use get_video_transcript instead.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "video_url": {
-                            "type": "string",
-                            "description": "The URL of the YouTube video"
-                        }
-                    },
-                    "required": ["video_url"]
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "search_transcript",
-                "description": "Search for EXACT keyword matches in a transcript and return ONLY matching segments. **DO NOT USE THIS for explaining videos or answering content questions** - it only finds specific text matches and returns snippets, not the full content. Use get_video_transcript instead when you need to understand or explain content. Only use this tool when user explicitly asks 'where/when is X mentioned' or 'find the part about X'.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "video_url": {
-                            "type": "string",
-                            "description": "The URL of the YouTube video"
-                        },
-                        "query": {
-                            "type": "string",
-                            "description": "The text or topic to search for in the transcript"
-                        },
-                        "context_chars": {
-                            "type": "integer",
-                            "description": "Number of characters to include before/after each match (default: 200)"
-                        }
-                    },
-                    "required": ["video_url", "query"]
-                }
-            }
-        }
-    ]
-
 
 def format_tools_prompt(tools: List[Dict[str, Any]]) -> str:
     """Format tools for Arch-Function model according to its expected format."""
     TASK_PROMPT = """You are an AI assistant with direct access to YouTube video analysis tools.
 
-CRITICAL INSTRUCTIONS:
-1. When you see a YouTube URL, YOU MUST use the available tools
-2. You CAN access YouTube - you have special tools for this purpose
-3. NEVER say "I can't access YouTube" or "I can't access external websites"
-4. After receiving tool results, ALWAYS use them to answer the user's question
-5. Tool results contain the actual video content - summarize and explain them to the user
-6. If tools return empty results, mention that specifically instead of refusing
+### OPERATIONAL PROTOCOL (MANDATORY):
 
-TOOL SELECTION RULES:
-✓ Use get_video_transcript when:
-  - User asks to "explain", "summarize", "describe", "tell me about" the video
-  - User asks about ANY content or topics in the video (even specific ones like "explain how X changed")
-  - User wants to understand what happens in the video
-  - This is your PRIMARY tool - it gives you the FULL transcript
+1. **TOOL USAGE IS REQUIRED:** - You DO NOT have up-to-date internal knowledge.
+   - example : You MUST use the `web_search` tool for questions about people, news, facts, or events (like "Who is Elon Musk?").
+   - Look at the user's message and description of tools and decide which tool to use.
 
-✗ DO NOT use search_transcript for content questions:
-  - search_transcript only finds specific keyword matches and returns snippets
-  - It often returns empty results if keywords don't match exactly
-  - ONLY use it when user explicitly asks "where is X mentioned" or "when does he talk about X"
+2. **OVERRIDE DEFAULT BEHAVIOR:**
+   - Do NOT say "I cannot provide information."
+   - Do NOT say "I don't have access to the internet."
+   - If you don't know the answer, you MUST call a tool to find it.
 
-✓ Use get_video_info when:
-  - User specifically asks about video LENGTH, duration, or statistics
-  - DO NOT use this for content questions - it only gives metadata
-
-IMPORTANT: For "explain this video" or any content question, ALWAYS use get_video_transcript FIRST."""
+    """
     
     TOOL_PROMPT = """
 # Tools
@@ -233,7 +187,7 @@ You are provided with function signatures within <tools></tools> XML tags:
 <tools>
 {tool_text}
 </tools>
-""".strip()
+    """.strip()
     
     FORMAT_PROMPT = """
 For each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:
@@ -300,7 +254,7 @@ async def intelligent_agent_response(conversation: Conversation) -> str:
     4. LLM receives tool results and generates final response
     """
     # Get available tools
-    tools = get_available_tools()
+    tools = await fetch_mcp_tools()
     system_prompt = format_tools_prompt(tools)
     
     # Prepare messages for function-calling model

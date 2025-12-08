@@ -67,8 +67,11 @@ async def get_transcript(video_url: str) -> str:
                     if line and not line.startswith("WEBVTT") and not "-->" in line and not line.isdigit():
                         # Remove timestamps and other VTT tags
                         cleaned_line = re.sub(r'<[^>]+>', '', line)
-                        text_lines.append(cleaned_line)
+                        if cleaned_line and (not text_lines or cleaned_line != text_lines[-1]):
+                            text_lines.append(cleaned_line)
+                text_lines.append(cleaned_line)
                 transcription = " ".join(text_lines)
+                print(transcription)
                 logging.info(f"Successfully parsed subtitles. Transcript length: {len(transcription)} chars.")
             else:
                 logging.info("No subtitles found. Falling back to audio transcription with Whisper.")
