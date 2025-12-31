@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: worker-transcript
-        image: ytsummarizer-backend:latest
+        image: oomersheriff12/ytsummarizer:latest
         imagePullPolicy: IfNotPresent
         command: ["celery", "-A", "mcp_server.worker.app", "worker", "--loglevel=info", "-Q", "transcript_queue", "--pool=solo", "-n", "worker-transcript@%h"]
         envFrom:

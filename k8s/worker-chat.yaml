@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: worker-chat
-        image: ytsummarizer-backend:latest
+        image: oomersheriff12/ytsummarizer:latest
         imagePullPolicy: IfNotPresent
         command: ["celery", "-A", "app.worker.celery_app", "worker", "--loglevel=info", "-Q", "chat_queue", "--pool=solo", "-n", "worker-chat@%h"]
         envFrom:

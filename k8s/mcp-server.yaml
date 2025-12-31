@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: mcp-server
-        image: ytsummarizer-backend:latest
+        image: oomersheriff12/ytsummarizer:latest
         imagePullPolicy: IfNotPresent
         command: ["python", "mcp_server/youtube_mcp_server.py"]
         ports:
