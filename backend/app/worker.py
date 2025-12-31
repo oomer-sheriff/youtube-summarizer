@@ -11,7 +11,7 @@ from typing import List, Dict, Any
 
 # --- Configuration (Preserved) ---
 MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8000/mcp/")
-FUNCTION_CALLING_MODEL = os.getenv("FUNCTION_CALLING_MODEL", "katanemo/Arch-Function-1.5B")
+FUNCTION_CALLING_MODEL = os.getenv("FUNCTION_CALLING_MODEL", "katanemo/Arch-Function-3B")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 # --- Logging ---

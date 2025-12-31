@@ -12,10 +12,18 @@ app = Celery('youtube_worker',
 # 2. Import the HEAVY module here (and only here)
 # This ensures the model loads in the worker process, not the web server
 try:
-    from youtube_transcript_service import get_transcript
+    from mcp_server.youtube_transcript_service import get_transcript
     logging.info("Successfully imported youtube_transcript_service (Model Loaded)")
 except ImportError:
-    logging.error("Could not import youtube_transcript_service. Make sure it is in the same folder.")
+    try:
+        # Fallback for when running as a script or different path
+        from youtube_transcript_service import get_transcript
+        logging.info("Successfully imported youtube_transcript_service using fallback (Model Loaded)")
+    except ImportError as e:
+        logging.error(f"Could not import youtube_transcript_service: {e}")
+        # Define a dummy function to prevent NameError, but raise error when called
+        async def get_transcript(*args, **kwargs):
+            raise ImportError("youtube_transcript_service could not be imported")
 
 @app.task(name='transcript.fetch', bind=True, acks_late=True, queue="transcript_queue")
 def fetch_transcript_task(self, video_url: str):
