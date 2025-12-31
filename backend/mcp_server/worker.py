@@ -4,9 +4,10 @@ from celery import Celery
 import logging
 
 # 1. Setup Celery (RabbitMQ broker, Redis backend)
+import os
 app = Celery('youtube_worker',
-             broker='pyamqp://guest:guest@localhost//',
-             backend='redis://localhost:6379/0')
+             broker=os.getenv("CELERY_BROKER_URL", "pyamqp://guest:guest@localhost//"),
+             backend=os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0"))
 
 # 2. Import the HEAVY module here (and only here)
 # This ensures the model loads in the worker process, not the web server
@@ -16,7 +17,7 @@ try:
 except ImportError:
     logging.error("Could not import youtube_transcript_service. Make sure it is in the same folder.")
 
-@app.task(name='transcript.fetch', bind=True, acks_late=True)
+@app.task(name='transcript.fetch', bind=True, acks_late=True, queue="transcript_queue")
 def fetch_transcript_task(self, video_url: str):
     """
     Celery task wrapper for the async get_transcript function.

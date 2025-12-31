@@ -14,9 +14,10 @@ logger = logging.getLogger(__name__)
 mcp = FastMCP(name="YouTube Summarizer")
 
 # Initialize Celery Client (Configuration only, no heavy imports)
+import os
 celery_app = Celery('youtube_worker',
-                    broker='pyamqp://guest:guest@localhost//',
-                    backend='redis://localhost:6379/0')
+                    broker=os.getenv("CELERY_BROKER_URL", "pyamqp://guest:guest@localhost//"),
+                    backend=os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0"))
 
 def extract_video_id(url: str) -> Optional[str]:
     regex = r"(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})"
@@ -39,7 +40,7 @@ def _get_transcript_from_queue(url: str, timeout: int = 30) -> str:
     normalized_url = normalize_video_url(url)
     
     # Send task by name (string) so we don't need to import the code
-    task = celery_app.send_task('transcript.fetch', args=[normalized_url])
+    task = celery_app.send_task('transcript.fetch', args=[normalized_url], queue='transcript_queue')
     
     try:
         # Block and wait for X seconds

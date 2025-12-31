@@ -1,0 +1,136 @@
+version: '3.8'
+
+services:
+  # --- Infrastructure Services ---
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - youtube_net
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - youtube_net
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 15s
+      timeout: 15s
+      retries: 5
+
+  # --- Application Services ---
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+    ports:
+      - "8001:8001"
+    env_file: .env
+    environment:
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - youtube_net
+
+  mcp-server:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: python mcp_server/youtube_mcp_server.py
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - youtube_net
+
+  # --- Workers ---
+  worker-chat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    # This worker handles the LLM chat logic
+    command: celery -A app.worker.celery_app worker --loglevel=info -Q chat_queue --pool=solo -n worker-chat@%h
+    env_file: .env
+    environment:
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+      - HF_HOME=${HF_HOME}
+    volumes:
+      - ${HF_HOST_CACHE}:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - youtube_net
+
+  worker-transcript:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    # This worker handles heavy YouTube transcription (Whisper)
+    command: celery -A mcp_server.worker.app worker --loglevel=info -Q transcript_queue --pool=solo -n worker-transcript@%h
+    env_file: .env
+    environment:
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+      - HF_HOME=${HF_HOME}
+    volumes:
+      - ${HF_HOST_CACHE}:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - youtube_net
+
+volumes:
+  redis_data:
+  rabbitmq_data:
+
+
+networks:
+  youtube_net:
+    driver: bridge

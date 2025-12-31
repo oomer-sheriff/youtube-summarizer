@@ -10,7 +10,7 @@ from celery.result import AsyncResult
 import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 # Import the celery app instance to send tasks
-from worker import celery_app, process_chat_request
+from app.worker import celery_app, process_chat_request
 
 app = FastAPI(title="Async YouTube Agent API", version="2.0.0")
 
