@@ -1,36 +1,43 @@
-"""
-Youtube summarizer app
+# YouTube Summarizer Agent
 
-This enhanced version uses Arch-Function-1.5B for intelligent tool calling.
-The LLM decides when and which tools to use, replacing hardcoded logic.
+An intelligent, microservice-based agent that summarizes YouTube videos. It uses an Agentic LLM (`Arch-Function`) to autonomously decide when to fetch transcripts and how to answer user queries.
+*(Demo link: https://www.loom.com/share/c90b6c77907d46f69e6864b771633bdc)*
 
-Features:
-- Intelligent tool selection (LLM decides when to fetch transcripts)
-- Multi-tool support (can use get_video_info, search_transcript, etc.)
-- Contextual decisions (e.g., check video length before fetching)
+## Features
+- **Agentic Workflow**: The LLM isn't just a text generator; it uses tools. It decides to call `get_transcript(url)` only when needed.
+- **Ollama Compatible**: The API mimics Ollama, allowing instant integration with frontends like **OpenWebUI**.
+- **Microservice Architecture**:
+  - **Backend**: FastAPI (Async)
+  - **Workers**: Celery + Redis (Scalable)
+  - **Tools**: MCP Server (Model Context Protocol)
 
-To run:
-1. Start the FastMCP server: `python youtube_mcp_server.py`
-2. Start this proxy: `python main.py`
-3. Connect OpenWebUI to http://localhost:8001
+## Documentation
+- **[Architecture Overview](docs/ARCHITECTURE.md)**: Diagrams and component details.
+- **[Deployment Guide](docs/DEPLOYMENT.md)**: Instructions for Docker Compose (Local), Kubernetes, and AWS EKS.
+- **[API Reference](docs/API.md)**: Endpoint documentation.
 
-To install OpenWebUI:
+## Quick Start (Docker Compose)
+Best for local testing with GPU support.
 
-https://docs.openwebui.com/getting-started/quick-start/
+1. **Clone & Setup**:
+   ```bash
+   git clone -b kube-dev https://github.com/oomer-sheriff/youtube-summarizer.git
+   cd youtube-summarizer
+   ```
 
-install openwebui 
+2. **Run**:
+   ```bash
+   docker-compose up --build
+   ```
 
-To connect to our custom api:
+3. **Use**:
+   - API Docs: `http://localhost:8001/docs`
+   - Connect OpenWebUI to: `http://host.docker.internal:8001` (Settings -> Admin -> Connections)
 
-   go to settings-> admin settings -> connections -> manage ollama connections and use http://host.docker.internal:8001 
+## Quick Start (Kubernetes)
+Best for production.
 
-   
-
-"""
-- and before this ofcourse do pip install requirements.txt on backend directory
-
-
-
-link to demo 
-
-https://www.loom.com/share/c90b6c77907d46f69e6864b771633bdc
+```bash
+kubectl apply -f k8s/
+```
+See [Deployment Guide](docs/DEPLOYMENT.md) for AWS setup.
