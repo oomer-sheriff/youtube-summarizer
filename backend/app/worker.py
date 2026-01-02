@@ -10,9 +10,9 @@ from fastmcp import Client
 from typing import List, Dict, Any
 
 # --- Configuration (Preserved) ---
-MCP_SERVER_URL = "http://localhost:8000/mcp/"
-FUNCTION_CALLING_MODEL = "katanemo/Arch-Function-3B"
-REDIS_URL = "redis://localhost:6379/0"
+MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8000/mcp/")
+FUNCTION_CALLING_MODEL = os.getenv("FUNCTION_CALLING_MODEL", "katanemo/Arch-Function-3B")
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 # --- Logging ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - [WORKER] - %(levelname)s - %(message)s')
@@ -27,21 +27,35 @@ celery_app.conf.update(
 # --- Global Model Variables ---
 model = None
 tokenizer = None
-device = "cuda" if torch.cuda.is_available() else "cpu"
+# device = "cuda" if torch.cuda.is_available() else "cpu"
+pass
 
 def load_function_calling_model():
     """Load the Arch-Function model. Runs once when worker starts."""
     global model, tokenizer
     if model is None:
         logging.info(f"Loading function-calling model: {FUNCTION_CALLING_MODEL}")
+        
+        if torch.cuda.is_available():
+            logging.info(f"CUDA Device: {torch.cuda.get_device_name(0)}")
+            logging.info(f"CUDA Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
+        else:
+            logging.warning("CUDA NOT AVAILABLE. Using CPU.")
+
+        dtype = torch.bfloat16 if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else torch.float16
+        logging.info(f"Using dtype: {dtype}")
+
         model = AutoModelForCausalLM.from_pretrained(
             FUNCTION_CALLING_MODEL,
             device_map="auto",
-            torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
+            torch_dtype=dtype,
             trust_remote_code=True
         )
         tokenizer = AutoTokenizer.from_pretrained(FUNCTION_CALLING_MODEL)
+        
         logging.info("Arch-Function model loaded successfully.")
+        logging.info(f"Model footprint: {model.get_memory_footprint() / 1e9:.2f} GB")
+        logging.info(f"Model device map: {model.hf_device_map}")
 
 # --- Helper Logic (Preserved Exactly) ---
 
@@ -195,7 +209,7 @@ async def intelligent_agent_logic(message_list: List[Dict[str, str]]):
     return response
 
 # --- The Celery Task ---
-@celery_app.task(bind=True, name="worker.process_chat_request")
+@celery_app.task(bind=True, name="worker.process_chat_request", queue="chat_queue")
 def process_chat_request(self, message_history_list):
     """
     Entry point for the background worker.

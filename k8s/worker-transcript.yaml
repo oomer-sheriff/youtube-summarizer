@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker-transcript
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker-transcript
+  template:
+    metadata:
+      labels:
+        app: worker-transcript
+    spec:
+      containers:
+      - name: worker-transcript
+        image: oomersheriff12/ytsummarizer:latest
+        imagePullPolicy: IfNotPresent
+        command: ["celery", "-A", "mcp_server.worker.app", "worker", "--loglevel=info", "-Q", "transcript_queue", "--pool=solo", "-n", "worker-transcript@%h"]
+        envFrom:
+        - configMapRef:
+            name: app-config
+        - secretRef:
+            name: app-secrets
+        volumeMounts:
+        - name: hf-cache
+          mountPath: /root/.cache/huggingface
+        # resources:
+          # limits:
+            # nvidia.com/gpu: 1
+      volumes:
+      - name: hf-cache
+        hostPath:
+          path: /run/desktop/mnt/host/c/Users/oomer/.cache/huggingface
+          type: Directory
