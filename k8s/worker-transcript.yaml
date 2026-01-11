@@ -25,11 +25,8 @@ spec:
         volumeMounts:
         - name: hf-cache
           mountPath: /root/.cache/huggingface
-        # resources:
-          # limits:
-            # nvidia.com/gpu: 1
       volumes:
       - name: hf-cache
         hostPath:
-          path: /run/desktop/mnt/host/c/Users/oomer/.cache/huggingface
-          type: Directory
+          path: /home/oomer/.cache/huggingface
+          type: DirectoryOrCreate
