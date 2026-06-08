@@ -8,7 +8,7 @@ An intelligent, microservice-based agent that summarizes YouTube videos. It uses
 - **Ollama Compatible**: The API mimics Ollama, allowing instant integration with frontends like **OpenWebUI**.
 - **Microservice Architecture**:
   - **Backend**: FastAPI (Async)
-  - **Workers**: Celery + Redis (Scalable)
+  - **Workers**: Celery + RabbitMQ/Redis (Scalable, with KEDA Autoscaling)
   - **Tools**: MCP Server (Model Context Protocol)
 
 ## Documentation
@@ -35,7 +35,9 @@ Best for local testing with GPU support.
    - Connect OpenWebUI to: `http://host.docker.internal:8001` (Settings -> Admin -> Connections)
 
 ## Quick Start (Kubernetes)
-Best for production.
+Best for production. Includes dynamic worker autoscaling via KEDA.
+
+**Prerequisite:** Ensure [KEDA](https://keda.sh/) is installed in your cluster.
 
 ```bash
 kubectl apply -f k8s/

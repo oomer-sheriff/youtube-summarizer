@@ -27,6 +27,7 @@ Best for verifying production manifests.
 ### Prerequisites
 - `kubectl` installed.
 - Kubernetes enabled in Docker Desktop.
+- [KEDA](https://keda.sh/) installed in your cluster (for autoscaling).
 
 ### Deploy
 ```bash
@@ -50,6 +51,7 @@ Best for scalable, GPU-accelerated production workloads.
 - **AWS CLI**: Configured.
 - **eksctl**: Installed.
 - **kubectl**: Installed.
+- **KEDA**: Installed in the cluster (`helm repo add kedacore https://kedacore.github.io/charts && helm install keda kedacore/keda --namespace keda --create-namespace`).
 
 ### Step 1: Create Cluster
 Create a cluster with GPU-enabled nodes (`g4dn` instances recommendation):
@@ -91,3 +93,6 @@ spec:
   type: LoadBalancer
 ```
 Run `kubectl get svc backend` to see your external IP/DNS.
+
+### Step 6: Autoscaling
+Worker pods (`worker-chat` and `worker-transcript`) are configured to automatically scale from 1 to 5 replicas based on the number of pending tasks in their respective RabbitMQ queues using KEDA.

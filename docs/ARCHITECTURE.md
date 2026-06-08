@@ -1,18 +1,19 @@
 # System Architecture
 
 ## Overview
-The YouTube Summarizer is a microservices-based application designed to process video summarization requests using LLMs and specialized transcription services. It uses an Agentic workflow where a Chat LLM (Arch-Function) can determine when to call external tools (like Fetch Transcript).
+The YouTube Summarizer is a microservices-based application designed to process video summarization requests using LLMs and specialized transcription services. It uses an Agentic workflow where a Chat LLM (Arch-Function) can determine when to call external tools (like Fetch Transcript). In production (Kubernetes), it utilizes **KEDA (Kubernetes Event-driven Autoscaling)** to dynamically scale worker pods based on the size of the task queues.
 
 ## Components
 
 ```mermaid
 graph TD
     User[User / Frontend] -->|HTTP POST /api/chat| Backend[FastAPI Backend]
-    Backend -->|Task| Redis[Redis (Broker & Backend)]
+    Backend -->|Task| RabbitMQ[RabbitMQ (Broker)]
+    Backend -.->|Result| Redis[Redis (Backend)]
     
     subgraph "Worker Layer"
-        Redis -->|chat_queue| WorkerChat[Worker: Chat LLM]
-        Redis -->|transcript_queue| WorkerTranscript[Worker: Transcript Service]
+        RabbitMQ -->|chat_queue| WorkerChat[Worker: Chat LLM (Scaled by KEDA)]
+        RabbitMQ -->|transcript_queue| WorkerTranscript[Worker: Transcript Service (Scaled by KEDA)]
     end
     
     WorkerChat -->|Check Tools| MCP[MCP Server]
@@ -31,8 +32,8 @@ graph TD
   - Provides Ollama-compatible endpoints for easy integration with UI tools (like OpenWebUI).
 
 ### 2. Message Broker & Result Backend (`redis` & `rabbitmq`)
-- **Redis**: Primary broker and result store for Celery. Stores intermediate task states and final LLM responses.
-- **RabbitMQ**: (Optional/Alternative) Configured for robust message queuing in scalable deployments.
+- **Redis**: Result store for Celery. Stores intermediate task states and final LLM responses.
+- **RabbitMQ**: Configured as the primary message broker. KEDA monitors RabbitMQ queues (`chat_queue` and `transcript_queue`) to auto-scale the worker layer dynamically.
 
 ### 3. Chat Worker (`worker-chat`)
 - **Role**: The "Brain" of the system.
