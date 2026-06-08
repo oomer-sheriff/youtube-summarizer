@@ -1,0 +1,45 @@
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: rabbitmq-trigger-auth
+spec:
+  secretTargetRef:
+  - parameter: host
+    name: app-secrets
+    key: CELERY_BROKER_URL
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: worker-chat-scaler
+spec:
+  scaleTargetRef:
+    name: worker-chat
+  minReplicaCount: 1
+  maxReplicaCount: 5
+  triggers:
+  - type: rabbitmq
+    metadata:
+      queueName: chat_queue
+      mode: QueueLength
+      value: "5"
+    authenticationRef:
+      name: rabbitmq-trigger-auth
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: worker-transcript-scaler
+spec:
+  scaleTargetRef:
+    name: worker-transcript
+  minReplicaCount: 1
+  maxReplicaCount: 5
+  triggers:
+  - type: rabbitmq
+    metadata:
+      queueName: transcript_queue
+      mode: QueueLength
+      value: "5"
+    authenticationRef:
+      name: rabbitmq-trigger-auth
